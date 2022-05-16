@@ -1,4 +1,8 @@
-import org.apache.spark.sql.{SparkSession, Row, SaveMode}
+import org.apache.spark.sql.types.{DateType}
+import org.apache.spark.sql.{SparkSession, functions}
+import java.time.format.DateTimeFormatter
+import java.time.LocalDateTime
+
 import java.io._
 
 
@@ -12,11 +16,14 @@ object Main extends App {
   val path = "DataSets\\TenSession\\"
   val files = new File(path).listFiles.map(_.getName).toList
 
+  var result = Seq.empty[(String, String)]
+
   files.foreach(file=>{
     val data = spark.sparkContext.textFile(path + file)
     val frst = data.first()
     val date = frst.split(' ')(1).split('_')(0) // получили дату
-    println(file + ":")  // выводим название файла, требуется для дебага, потом удалить
+    //val dte =
+    //println(file + ":")  // выводим название файла, требуется для дебага, потом удалить
     var qs_status : Boolean = false
     var identArr = Seq.empty[String] // сюда пишем идентификаторы поиска
 
@@ -40,14 +47,27 @@ object Main extends App {
       }
       else if(line.indexOf("DOC_OPEN") == 0){
         val sets = line.split(' ')
-        if(identArr.contains(sets(2))) println(sets(3))
-
+        if(identArr.contains(sets(2))) {
+          val doc_ident = sets(3)
+          result = result :+ (date, doc_ident)
+        }
       }
     })
-
-    println()
-    println()
   })
+
+  val resultRDD = spark.sparkContext.parallelize(result)
+
+  val df = spark.createDataFrame(resultRDD).toDF("Date", "Ident")
+
+  val pathResult : String = "result"+ DateTimeFormatter.ofPattern("dd-MM-yyyy-HH-mm").format(LocalDateTime.now)
+
+  (df.groupBy("Date", "Ident")
+    .agg(functions.count("*")))
+    .orderBy(functions.to_date(functions.column("Date"), "dd.MM.yyyy").cast(DateType).asc)
+    .write.format("csv").save(pathResult)
+
+
+
 
   spark.stop()
 }
