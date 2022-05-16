@@ -1,0 +1,6 @@
+.idea
+target
+DataSets
+metastore_db
+spark-warehouse
+derby.log
